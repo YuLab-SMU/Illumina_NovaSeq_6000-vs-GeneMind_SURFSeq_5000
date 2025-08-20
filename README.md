@@ -2,13 +2,12 @@
 
 This repository contains the code for generating the five main figures accompanying the manuscript:
 
-- Figure1.html
-- Figure2.html
-- Figure3.html
-- Figure4.html
-- Figure5.html
-
-Please open the corresponding HTML files to view each figure. For questions or issues, feel free to open an issue in this repository.
+## Code and Figures
+- [Figure 1 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure1.html)
+- [Figure 2 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure2.html)
+- [Figure 3 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure3.html)
+- [Figure 4 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure4.html)
+- [Figure 5 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure5.html)
 
 ## Citation
 
