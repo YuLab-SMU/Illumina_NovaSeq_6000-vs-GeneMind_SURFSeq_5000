@@ -3,11 +3,11 @@
 This repository contains the code for generating the five main figures accompanying the manuscript:
 
 ## Code and Figures
-- [Figure 1 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure1.html)
-- [Figure 2 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure2.html)
-- [Figure 3 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure3.html)
-- [Figure 4 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure4.html)
-- [Figure 5 — code and figure](https://treywea.github.io/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000/docs/Figure5.html)
+- [Figure 1 — code and figure](https://yulab-smu.top/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000//Figure1.html)
+- [Figure 2 — code and figure](https://yulab-smu.top/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000//Figure2.html)
+- [Figure 3 — code and figure](https://yulab-smu.top/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000//Figure3.html)
+- [Figure 4 — code and figure](https://yulab-smu.top/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000//Figure4.html)
+- [Figure 5 — code and figure](https://yulab-smu.top/Illumina_NovaSeq_6000-vs-GeneMind_SURFSeq_5000//Figure5.html)
 
 ## Citation
 
