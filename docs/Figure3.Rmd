@@ -1,0 +1,268 @@
+---
+title: "Figure 3 code"
+output: html_document
+date: "2025-08-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+ 
+  
+## Figure 3 (A B)  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(Seurat)
+library(ggplot2)
+library(ggprism)
+library(ggfun)
+library(aplot)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+#set the color
+celltype_colors <- c(
+  "Epithelial_Airway" = "#FFE7E6",
+  "Epithelial_Alveolar" = "#F7C4C4",
+  "Endothelial_Main" = "#9BB8DB",
+  "Endothelial_Capillary" = "#6076AF",
+  "Immune_Lymphoid" = "#CFD6E4",
+  "Immune_Myeloid" = "#ED9D98",
+  "Mesenchymal_Airway/Vascular" = "#C3C6E3",
+  "Mesenchymal_Alveolar" = "#E0C999",
+  "Mesenchymal_Pleura" = "#C6ADDE"
+)
+platform_colors <- c(
+  "Lung NV" = "#F07204",
+  "Lung SF" = "#43A3CB"
+)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Define parameters
+base_theme <- theme_prism(base_size = 10) +
+  theme(
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    plot.margin = margin(5, 5, 5, 5)
+  )
+legend_guide <- guide_legend(
+  override.aes = list(size = 5),
+  title.theme = element_text(size = 15, face = "bold"),
+  label.theme = element_text(size = 12, face = "bold")
+)
+```
+
+```{r fig.width=7, fig.height=3, message=FALSE, warning=FALSE}
+# Load the data and plot figure 
+load("10b_2l.RData") 
+p1 <- DimPlot(merged_Lung, reduction = "umap", group.by = "Main_cell_type",label = FALSE, label.size = 4) +
+  scale_color_manual(values = celltype_colors) +
+  base_theme +
+  NoLegend() +
+  ggtitle(NULL)
+merged_Lung$platform_group <- ifelse(grepl("NV", merged_Lung$orig.ident),"Lung NV", "Lung SF")
+p2 <- DimPlot(merged_Lung, reduction = "umap", group.by = "orig.ident", label = FALSE) +
+  scale_color_manual(values = platform_colors) +
+  base_theme +
+  guides(color = legend_guide) +
+  ggtitle(NULL)
+p <- plot_list(p1, p2, ncol = 2)
+p
+```
+
+ 
+  
+## Figure 3 (C)  
+```{r, message=FALSE, warning=FALSE}
+# Define parameters
+base_theme <- theme_prism(base_size = 22) +
+  theme(
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5)
+  )
+legend_guide <- guide_legend(
+  override.aes = list(size = 6),
+  title.theme = element_text(size = 18, face = "bold"),
+  label.theme = element_text(size = 18, face = "bold"),
+  ncol = 2
+)
+```
+
+```{r fig.width=15, fig.height=8, message=FALSE, warning=FALSE}
+# Load the data and plot figure
+cell_data <- merged_Lung@meta.data
+coords <- function(df) {
+  data.frame(
+    x = df[["x"]],
+    y = df[["y"]],
+    cell_type = df[["Main_cell_type"]]
+  )
+}
+plot_data_nv <- coords(merged_Lung@meta.data[merged_Lung$orig.ident == "Lung NV", ])
+plot_data_sf <- coords(merged_Lung@meta.data[merged_Lung$orig.ident == "Lung SF", ])
+p1 <- ggplot(plot_data_nv, aes(x = x, y = y, color = cell_type)) +
+  geom_point(size = 0.5, show.legend = TRUE) +
+  labs(title = "Lung NV", color = "Cell Type") +
+  coord_fixed(ratio = 1) +
+  base_theme +
+  scale_color_manual(values = celltype_colors) +
+  guides(color = legend_guide)
+p2 <- ggplot(plot_data_sf, aes(x = x, y = y, color = cell_type)) +
+  geom_point(size = 0.5, show.legend = TRUE) +
+  labs(title = "Lung SF", color = "Cell Type") +
+  coord_fixed(ratio = 1) +
+  base_theme +
+  scale_color_manual(values = celltype_colors) +
+  guides(color = legend_guide)
+p <- plot_list(p1, p2, ncol = 1)
+p
+```
+
+
+  
+## Figure 3 (D)  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(MetaNeighbor)
+library(dplyr)
+library(tidyr)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Load the data
+sce <- as.SingleCellExperiment(merged_Lung, assay = "SCT")
+hvgs <- head(merged_Lung@assays[["SCT"]]@var.features, 3000)
+study_id <- sce@colData[["orig.ident"]]
+cell_type <- sce@colData[["Main_cell_type"]]
+Aurocs_matrix <- MetaNeighborUS(
+  var_genes = hvgs,
+  dat = sce,
+  study_id = study_id,
+  cell_type = cell_type,
+  fast_version = TRUE
+)
+auroc_df <- as.data.frame(as.table(Aurocs_matrix)) %>%
+  separate(Var1, into = c("Sample", "CellType"), sep = "\\|") %>%
+  separate(Var2, into = c("Sample_2", "CellType_2"), sep = "\\|") %>%
+  rename(AUROC = Freq) %>%
+  mutate(
+    Sample   = factor(gsub(".*\\s(NV|SF)$", "\\1", Sample), levels = c("NV", "SF")),
+    Sample_2 = factor(gsub(".*\\s(NV|SF)$", "\\1", Sample_2), levels = c("NV", "SF")),
+    CellType = factor(CellType, levels = names(celltype_colors))
+  )
+```
+
+
+
+```{r fig.width=6, fig.height=4, message=FALSE, warning=FALSE}
+# Show the figure
+p <- ggplot(auroc_df, aes(x = Sample, y = AUROC, fill = CellType)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = celltype_colors) +
+  theme_minimal() +
+  theme_prism(base_size = 22) +
+  theme(
+    plot.margin = margin(25, 25, 25, 25),
+    axis.title.x = element_blank()
+  ) +
+  labs(y = "AUROC") +
+  NoLegend()
+p
+```
+
+
+  
+## Figure 3 (E)  
+```{r, message=FALSE, warning=FALSE}
+# Load the data
+Idents(merged_Lung) <- merged_Lung@meta.data$Main_cell_type
+selected_genes <- c("Col3a1","Trpc6", "Pdgfra", "Mrc1", "Ptprc", "Ptprb", "Lama5", "Sftpc", "Scgb1a1")
+plot_data <- DotPlot(merged_Lung, features = selected_genes)$data
+celltype_order <- c(
+  "Epithelial_Airway", 
+  "Epithelial_Alveolar", 
+  "Endothelial_Main", 
+  "Endothelial_Capillary", 
+  "Immune_Lymphoid", 
+  "Immune_Myeloid", 
+  "Mesenchymal_Airway/Vascular",
+  "Mesenchymal_Alveolar",
+  "Mesenchymal_Pleura"
+)
+plot_data$id <- factor(plot_data$id, levels = celltype_order)
+plot_data$combined_score <- plot_data$avg.exp.scaled * (plot_data$pct.exp/100)
+```
+
+
+
+
+```{r fig.width=16, fig.height=14, message=FALSE, warning=FALSE}
+# Show the figure
+ggplot(plot_data, aes(x = features.plot, y = id, 
+                      size = combined_score, 
+                      color = avg.exp.scaled)) +
+    geom_point() +
+    scale_size_continuous(range = c(2, 15)) +
+    scale_color_gradient(low = "#FFFFFF", 
+                        high = "#AD1C42",    
+                        breaks = c(0, max(plot_data$avg.exp.scaled)/2, max(plot_data$avg.exp.scaled)),
+                        labels = function(x) sprintf("%.1f", x)) +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_text(angle = 30,    
+                                 hjust = 1,
+                                 size = 26,        
+                                 face = "bold",
+                                 color = "#333333"),  
+        axis.text.y = element_text(size = 26,     
+                                 face = "bold",
+                                 color = "#333333"),  
+        legend.text = element_text(size = 22,     
+                                 face = "bold",
+                                 color = "#333333"),  
+        legend.title = element_text(size = 24,    
+                                  face = "bold",
+                                  color = "#333333"),  
+        axis.title = element_blank(),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.8, 2, 1.2, 2), "cm"),
+        panel.grid.major = element_line(color = "grey90"),
+        panel.grid.minor = element_blank(),
+        legend.spacing.x = unit(1, 'cm'),
+        legend.box.margin = margin(-10, -300, 0, -300)
+    ) +
+    coord_flip() +
+    guides(
+        size = guide_legend(title = "Expression Score",
+                           title.position = "top",
+                           title.hjust = 0.5,
+                           nrow = 1),
+        color = guide_colorbar(title = "Scaled Expression",
+                             title.position = "top",
+                             title.hjust = 0.5,
+                             barwidth = 15,
+                             barheight = 1,
+                             nrow = 1,
+                             ticks.linewidth = 1,
+                             label.theme = element_text(size = 20,    
+                                                      face = "bold",
+                                                      color = "#333333"))  
+    )
+```
+
+```{r, message=FALSE, warning=FALSE}
+# package version 
+library(sessioninfo)
+pi <- package_info(pkgs = "attached")
+pi_df <- as.data.frame(pi)[, c("package", "loadedversion", "source")]
+pi_df
+```
