@@ -1,0 +1,404 @@
+---
+title: "Figure 4 code"
+output: html_document
+date: "2025-08-09"
+---
+
+```{r setup, include=FALSE}
+library(reticulate)
+library(dplyr)
+library(eulerr)
+library(grid)
+library(Seurat)
+library(ggplot2)
+library(org.Mm.eg.db)
+library(dplyr)
+library(clusterProfiler)
+library(CellChat)
+library(ggprism)
+library(SingleCellExperiment)
+library(SpatialExperiment)
+library(SVP)
+library(sessioninfo)
+use_condaenv("/share/denlin/anaconda3/envs/stereo38_217", required = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/share/denlin/benchmark/20250810/fix_code/data")
+package_info_r <- function(pkgs = "attached") {
+  pi <- sessioninfo::package_info(pkgs = pkgs)
+  pi_df <- as.data.frame(pi)[, c("package", "loadedversion", "source")]
+  pi_df$source <- sub("Github \\(([^/]+)/([^@]+)@.*\\)", "Github (\\1/\\2)", pi_df$source)
+  pi_df
+}
+r_pkgs <- package_info_r() 
+py_run_string("
+import sys
+import importlib
+from importlib.metadata import version, PackageNotFoundError
+explicit_pkgs = ['stereo', 'pickle', 'matplotlib', 'warnings']
+rows = []
+for pkg in explicit_pkgs:
+    if pkg in sys.builtin_module_names or pkg in ['pickle','warnings']:
+        rows.append({'package': pkg, 'loadedversion': '', 'source': 'stdlib'})
+    else:
+        try:
+            ver = version(pkg)
+            rows.append({'package': pkg, 'loadedversion': ver, 'source': 'site-packages'})
+        except PackageNotFoundError:
+            mod = sys.modules.get(pkg)
+            ver = getattr(mod, '__version__', '')
+            rows.append({'package': pkg, 'loadedversion': ver, 'source': 'site-packages' if ver else 'unknown'})
+")
+py_pkgs <- py_to_r(py$rows)
+py_pkgs <- data.frame(
+  package = sapply(py_pkgs, function(x) x$package),
+  loadedversion = sapply(py_pkgs, function(x) x$loadedversion),
+  source = sapply(py_pkgs, function(x) x$source),
+  stringsAsFactors = FALSE
+)
+python_version <- "3.8.20"
+py_pkgs <- py_pkgs %>%
+  mutate(
+    loadedversion = case_when(
+      package %in% c("pickle", "warnings") ~ NA_character_,
+      package == "stereo" ~ "1.6.0",
+      TRUE ~ loadedversion
+    ),
+    source = case_when(
+      package %in% c("pickle", "warnings") ~ paste0("stdlib (Python ", python_version, ")"),
+      package == "stereo" ~ "site-packages",
+      TRUE ~ source
+    ),
+    language = "Python"
+  )
+r_pkgs2 <- r_pkgs %>% mutate(language = "R")
+package_info <- bind_rows(r_pkgs2, py_pkgs) %>%
+  arrange(factor(language, levels = c("R", "Python")), package)
+rownames(package_info) <- NULL
+package_info
+```
+
+
+## Figure 4 (A)  
+  
+  
+  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(eulerr)
+library(grid)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Define functions
+compute_venn <- function(nv_genes, sf_genes, sample1 = "Brain NV", sample2 = "Brain SF", digits = 4) {
+  set1_only <- setdiff(nv_genes, sf_genes)
+  set2_only <- setdiff(sf_genes, nv_genes)
+  shared    <- intersect(nv_genes, sf_genes)
+  counts <- c(length(set1_only), length(set2_only), length(shared))
+  names(counts) <- c(sample1, sample2, paste(sample1, sample2, sep = "&"))
+  total <- sum(counts)
+  labels <- paste0(counts, "\n(", signif(counts / total * 100, digits), "%)")
+  names(labels) <- names(counts)
+  list(counts = counts, labels = labels)
+}
+plot_marker_euler <- function(venn_res, title = "Sample", fills = c("#F9DF91", "#E6D9AE", "#A8CFE8")) {
+  venn_obj <- euler(venn_res$counts)
+  grid.newpage()
+  p <- plot(
+    venn_obj,
+    fills = list(fill = fills, alpha = 0.7),
+    labels = FALSE,
+    edges = NULL,            
+    quantities = FALSE,
+    main = list(label = title, cex = 2.1, font = 2),
+    output = "grob"
+  )
+  grid.draw(p)
+  grid.text(venn_res$labels[1], x = 0.14, y = 0.5, gp = gpar(fontsize = 16, fontface = "bold"))
+  grid.text(venn_res$labels[2], x = 0.86, y = 0.5, gp = gpar(fontsize = 16, fontface = "bold"))
+  grid.text(venn_res$labels[3], x = 0.5,  y = 0.5, gp = gpar(fontsize = 20, fontface = "bold"))
+}
+```
+
+
+
+```{r fig.width=7, fig.height=9, message=FALSE, warning=FALSE}
+#  Load data and show the figure
+load("marker_10bnvsf.RData")
+celltype <- "Astrocytes"
+nv_genes <- markers_10bnv$gene[markers_10bnv$cluster == celltype]
+sf_genes <- markers_10bsf$gene[markers_10bsf$cluster == celltype]
+venn_res <- compute_venn(nv_genes, sf_genes)
+plot_marker_euler(venn_res, title = celltype)
+```
+
+
+
+
+
+## Figure 4 (B)  
+  
+  
+  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(Seurat)
+library(ggplot2)
+library(org.Mm.eg.db)
+library(dplyr)
+library(clusterProfiler)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Define functions
+prepare_GO <- function(marker_data, p_cutoff = 0.05, q_cutoff = 0.2) {
+  markers <- marker_data %>%
+    group_by(cluster) %>%
+    filter(p_val_adj < 0.001) %>%
+    ungroup()
+  gid <- bitr(unique(markers$gene), fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Mm.eg.db)
+  markers <- full_join(markers, gid, by = c("gene" = "SYMBOL"))
+  compareCluster(
+    ENTREZID ~ cluster,
+    data = markers,
+    fun = "enrichGO",
+    OrgDb = org.Mm.eg.db,
+    ont = "ALL",
+    keyType = "ENTREZID",
+    pvalueCutoff = p_cutoff,
+    qvalueCutoff = q_cutoff
+  )
+}
+clean_go_description <- function(df) {
+  df$Description <- gsub(" - Mus musculus \\(house mouse\\)", "", df$Description)
+  df
+}
+combine_results <- function(go_obj_list, sample_names) {
+  combined <- lapply(seq_along(go_obj_list), function(i) {
+    df <- clean_go_description(go_obj_list[[i]]@compareClusterResult)
+    df$sample <- sample_names[i]
+    df
+  }) %>% bind_rows()
+  combined_go <- go_obj_list[[1]]
+  combined_go@compareClusterResult <- combined
+  combined_go
+}
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Load the data and combine
+b1_5nv_GO <- prepare_GO(markers_10bnv, p_cutoff = 0.03)
+b1_5sf_GO <- prepare_GO(markers_10bsf, p_cutoff = 0.03)
+b1_5_combined_GO <- combine_results(
+  go_obj_list  = list(b1_5nv_GO, b1_5sf_GO),
+  sample_names = c("Brain1-5 NV", "Brain1-5 SF")
+)
+b1_5_combined_GO@compareClusterResult$cluster <- factor(
+  b1_5_combined_GO@compareClusterResult$cluster,
+  levels = unique(b1_5_combined_GO@compareClusterResult$cluster)
+)
+```
+
+
+```{r fig.width=13, fig.height=7, message=FALSE, warning=FALSE}
+# Load the data and show the figure
+p <- dotplot(
+    b1_5_combined_GO,
+    x            = "cluster",
+    color        = "p.adjust",
+    font.size    = 18,
+    showCategory = 5,
+    label_format = 40
+  ) +
+  theme(
+    axis.text.x   = element_text(angle = 30, hjust = 1, size = 16, face = "bold"),
+    axis.text.y   = element_text(size = 16, face = "bold"),
+    axis.title    = element_blank(),
+    plot.title    = element_text(size = 32, face = "bold"),
+    legend.title  = element_text(size = 20, face = "bold"),
+    legend.text   = element_text(size = 20, face = "bold"),
+    strip.text    = element_text(size = 22, face = "bold")
+  ) +
+  facet_grid(. ~ sample)
+p
+```
+
+
+
+
+## Figure 4 (C)  
+  
+  
+  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(CellChat)
+library(ggprism)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Load the data
+load("cellchat_b1_5.RData")
+```
+
+```{r fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
+par(mar = c(2, 2, 2, 2))
+par(mfrow = c(1, 2), xpd = TRUE)
+netVisual_circle(cellchat_b1_5nv@net$count, vertex.weight = groupSize_nv,
+                 weight.scale = TRUE, label.edge = FALSE,
+                 vertex.label.cex = 0.8, vertex.label.color = "black")
+netVisual_circle(cellchat_b1_5sf@net$count, vertex.weight = groupSize_sf,
+                 weight.scale = TRUE, label.edge = FALSE,
+                 vertex.label.cex = 0.8, vertex.label.color = "black")
+```
+
+
+
+```{r, message=FALSE, warning=FALSE}
+# Load the data
+object.list <- list("Brain1-5 NV" = cellchat_b1_5nv, "Brain1-5 SF" = cellchat_b1_5sf)
+cellchat <- mergeCellChat(object.list, add.names = names(object.list))
+```
+
+
+
+```{r fig.width=3, fig.height=5, message=FALSE, warning=FALSE}
+# Show the figure
+compareInteractions(cellchat, show.legend = F, group = c(1,2))+ 
+  theme_prism(base_size = 12) +
+  guides(
+    fill = guide_legend(
+      title.theme = element_text(size = 13, face = "bold"),
+      label.theme = element_text(size = 13, face = "bold")
+    )
+  ) + 
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1),
+    legend.position = "none" 
+  )
+```
+
+
+
+
+## Figure 4 (D)  
+  
+  
+  
+```{python, message=FALSE, warning=FALSE}
+import warnings
+warnings.filterwarnings('ignore')
+import stereo as st
+import pickle
+import matplotlib.pyplot as plt
+```
+
+
+```{python, message=FALSE, warning=FALSE}
+# Define functions
+class SafeUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'stereo.core.result' and name == 'Result':
+            class DummyResult(dict):
+                def __setitem__(self, key, value):
+                    super().__setitem__(key, value)
+            return DummyResult
+        return super().find_class(module, name)
+def load_stereo_data(file_path):
+    with open(file_path, "rb") as f:
+        return SafeUnpickler(f).load()
+def subset_cells(data, prefix):
+    cells = [c for c in data.cells.cell_name if c.startswith(prefix)]
+    sub_data = data.tl.filter_cells(cell_list=cells, inplace=False)
+    sub_module = data.tl.result["spatial_hotspot"].module_scores.loc[cells, :]
+    sub_data.tl.result["spatial_hotspot"].module_scores = sub_module
+    return sub_data
+def plot_module(data_obj, module_id, vmin=-1.2, vmax=2.6, cbar_ticks=None, title=None):
+    if cbar_ticks is None:
+        cbar_ticks = [vmin, (vmin+vmax)/2, vmax]
+    scores = data_obj.tl.result["spatial_hotspot"].module_scores[module_id]
+    coords = data_obj.cells_matrix["spatial"]
+    plt.figure(figsize=(6, 5))
+    sc = plt.scatter(coords[:, 0], coords[:, 1],
+                     c=scores, cmap="RdYlBu_r", s=5,
+                     vmin=vmin, vmax=vmax)
+    ax = plt.gca()
+    ax.invert_yaxis()
+    ax.set_aspect("equal")
+    ax.set_xticks([]); ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    cbar = plt.colorbar(sc, shrink=0.5, aspect=17)
+    cbar.set_ticks(cbar_ticks)
+    plt.axis("off")
+    plt.show()
+```
+
+
+```{python, message=FALSE, warning=FALSE}
+# Load the data and plot figure 
+data = load_stereo_data("Brain_NVSF.pkl")
+plot_module(subset_cells(data, "Brain1 NV"), module_id=4,
+            vmin=-1.2, vmax=2.6,
+            cbar_ticks=[-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5])
+```
+
+
+
+```{python, message=FALSE, warning=FALSE}
+# Show the figure
+plot_module(subset_cells(data, "Brain1 SF"), module_id=4,
+            vmin=-1.2, vmax=2.6,
+            cbar_ticks=[-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5])
+```
+
+
+
+
+
+## Figure 4 (E)  
+  
+  
+  
+```{r, message=FALSE, warning=FALSE}
+# Load the library
+library(SingleCellExperiment)
+library(SpatialExperiment)
+library(SVP)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Load the data
+load("Brain_gbv.RData")
+spe <- SpatialExperiment(
+  assays = list(logcounts = mat),
+  spatialCoords = coords_avg
+)
+features <- as.vector(t(outer(paste0("module", 1:19), c("_NV","_SF"), paste0)))
+gbv <- spe |>
+  runGLOBALBV(
+    features1 = features,
+    assay.type = 1,
+    permutation = NULL,
+    add.pvalue = TRUE,
+    alternative = "greater"
+  )
+```
+
+
+
+```{r fig.width=10, fig.height=9, message=FALSE, warning=FALSE}
+plot_heatmap_globalbv(gbv, font.size = 3)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# package version 
+library(sessioninfo)
+package_info
+```
+
