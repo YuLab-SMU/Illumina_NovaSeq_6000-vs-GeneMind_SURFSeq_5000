@@ -125,7 +125,7 @@ plot_marker_euler <- function(venn_res, title = "Sample", fills = c("#F9DF91", "
 
 ```{r fig.width=7, fig.height=9, message=FALSE, warning=FALSE}
 #  Load data and show the figure
-load("markers_lnvsf.RData")
+load("markers_l.RData")
 celltype <- "Mesenchymal_Alveolar"
 nv_genes <- markers_l_nv$gene[markers_l_nv$cluster == celltype]
 sf_genes <- markers_l_sf$gene[markers_l_sf$cluster == celltype]
